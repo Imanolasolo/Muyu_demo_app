@@ -1,4 +1,5 @@
 import pandas as pd
+import json
 from db_setup import get_conn
 
 def demo_crud(st):
@@ -35,9 +36,11 @@ def demo_crud(st):
         fecha_inicio_fase = st.date_input("Fecha inicio fase")
         fecha_fin_fase = st.date_input("Fecha fin fase")
         fecha_fin_demo = st.date_input("Fecha fin demo")
+        descripcion_tareas = st.text_area("Descripción de tareas (situación actual y tareas a hacer)")
         if st.button("Agregar demo"):
             if inst_name and titulo and participante and responsable:
                 cur = conn.cursor()
+                metadata_json = json.dumps({"descripcion_tareas": descripcion_tareas})
                 cur.execute(
                     "INSERT INTO demo (institution_id, title, participante, responsable_muyu, num_users, state, phase, start_date, start_phase_date, end_phase_date, end_date, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
@@ -52,7 +55,7 @@ def demo_crud(st):
                         fecha_inicio_fase.isoformat(),
                         fecha_fin_fase.isoformat(),
                         fecha_fin_demo.isoformat(),
-                        '{}'
+                        metadata_json
                     )
                 )
                 demo_id = cur.lastrowid
