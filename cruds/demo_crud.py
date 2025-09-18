@@ -13,23 +13,60 @@ def demo_crud(st):
     # Obtener instituciones para el selector
     inst_df = pd.read_sql_query("SELECT id, name FROM institution", conn)
     inst_names = inst_df['name'].tolist()
-    inst_ids = inst_df['id'].tolist()
 
-    with st.form("add_demo_form"):
+    estados = ['Preparación', 'Activación y Bienvenida', 'Sesión informativa', 'Grabaciones', 'Encuesta', 'Cierre', 'Resultados']
+    fases = ['Inicio', 'En curso', 'Finalizada']
+
+    with st.expander("Agregar demo"):
         inst_name = st.selectbox("Institución", inst_names)
-        title = st.text_input("Título demo")
+        inst_id = int(inst_df[inst_df['name'] == inst_name]['id'].iloc[0]) if inst_name else None
+
+        # Obtener participantes de la institución seleccionada
+        part_df = pd.read_sql_query("SELECT name FROM contact WHERE institution_id=?", conn, params=(inst_id,))
+        participantes = part_df['name'].tolist() if not part_df.empty else []
+
+        titulo = st.text_input("Título demo")
+        participante = st.selectbox("Participante", participantes) if participantes else st.text_input("Participante (nombre)")
         responsable = st.text_input("Responsable MUYU")
+        estado = st.selectbox("Estado", estados)
+        fase = st.selectbox("Fase", fases)
         num_users = st.number_input("Usuarios planificados", min_value=1, value=10)
-        submitted = st.form_submit_button("Agregar demo")
-        if submitted and inst_name and title and responsable:
-            inst_id = int(inst_df[inst_df['name'] == inst_name]['id'].iloc[0])
-            conn.execute(
-                "INSERT INTO demo (institution_id, title, responsable_muyu, num_users, state, phase, start_date, metadata) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?)",
-                (inst_id, title, responsable, num_users, 'Preparación', 'Inicio', '{}')
-            )
-            conn.commit()
-            st.success("Demo agregada")
-            st.rerun()
+        fecha_inicio_demo = st.date_input("Fecha inicio demo")
+        fecha_inicio_fase = st.date_input("Fecha inicio fase")
+        fecha_fin_fase = st.date_input("Fecha fin fase")
+        fecha_fin_demo = st.date_input("Fecha fin demo")
+        if st.button("Agregar demo"):
+            if inst_name and titulo and participante and responsable:
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO demo (institution_id, title, participante, responsable_muyu, num_users, state, phase, start_date, start_phase_date, end_phase_date, end_date, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        inst_id,
+                        titulo,
+                        participante,
+                        responsable,
+                        num_users,
+                        estado,
+                        fase,
+                        fecha_inicio_demo.isoformat(),
+                        fecha_inicio_fase.isoformat(),
+                        fecha_fin_fase.isoformat(),
+                        fecha_fin_demo.isoformat(),
+                        '{}'
+                    )
+                )
+                demo_id = cur.lastrowid
+                # Crear participante en la tabla participant si no existe
+                part_df = pd.read_sql_query("SELECT name, email, phone FROM contact WHERE name=? AND institution_id=?", conn, params=(participante, inst_id))
+                if not part_df.empty:
+                    p = part_df.iloc[0]
+                    cur.execute(
+                        "INSERT INTO participant (demo_id, name, email, phone, activated) VALUES (?, ?, ?, ?, ?)",
+                        (demo_id, p['name'], p['email'], p['phone'], 0)
+                    )
+                    conn.commit()
+                st.success("Demo agregada")
+                st.rerun()
 
     demo_ids = df['id'].tolist() if not df.empty else []
     if demo_ids:

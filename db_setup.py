@@ -94,7 +94,7 @@ def init_db():
         role TEXT
     )
     ''')
-    # Contact
+    # Contact (asegura que la columna institution_id exista)
     cur.execute('''
     CREATE TABLE IF NOT EXISTS contact (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,6 +103,12 @@ def init_db():
         phone TEXT
     )
     ''')
+    # Migración: agrega institution_id si no existe
+    cur.execute("PRAGMA table_info(contact)")
+    columns = [row[1] for row in cur.fetchall()]
+    if "institution_id" not in columns:
+        cur.execute("ALTER TABLE contact ADD COLUMN institution_id INTEGER REFERENCES institution(id)")
+        conn.commit()
     conn.commit()
     conn.close()
 

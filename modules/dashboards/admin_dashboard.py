@@ -16,7 +16,7 @@ def show_admin_dashboard(st):
 
     accion = st.sidebar.selectbox(
         "Gestión",
-        ["Panel Kanban", "Usuarios", "Roles", "Instituciones", "Contactos", "Demos"],
+        ["Panel Kanban", "Usuarios", "Roles", "Instituciones", "Participantes", "Demos"],
         key="admin_gestion_selector"
     )
 
@@ -29,7 +29,7 @@ def show_admin_dashboard(st):
         role_crud(st)
     elif accion == "Instituciones":
         institution_crud(st)
-    elif accion == "Contactos":
+    elif accion == "Participantes":
         contact_crud(st)
     elif accion == "Demos":
         demo_crud(st)
