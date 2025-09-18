@@ -1,4 +1,5 @@
 import pandas as pd
+import json
 from db_setup import fetch_demos, run_automation_checks, get_conn, update_demo_state
 
 def show_kanban_dashboard(st):
@@ -59,36 +60,74 @@ def show_kanban_dashboard(st):
                             st.success(f'{len(alerts)} alertas creadas como tareas')
                         else:
                             st.success('No se detectaron alertas')
-                    # Participantes asociados a la demo
-                    conn = get_conn()
-                    part_df = pd.read_sql_query(
-                        "SELECT name, email, phone FROM participant WHERE demo_id=?",
-                        conn, params=(it['id'],)
-                    )
-                    conn.close()
-                    st.markdown("**Participantes asociados:**")
-                    if part_df.empty:
-                        st.info("No hay participantes para esta demo.")
-                    else:
-                        for idx, row in part_df.iterrows():
-                            st.write(f"- {row['name']} | {row['email']} | {row['phone']}")
-                    # Tareas / Alertas asociadas
-                    st.markdown("**Tareas / Alertas asociadas:**")
-                    conn = get_conn()
-                    tasks_df = pd.read_sql_query(
-                        "SELECT * FROM task WHERE demo_id=? ORDER BY created_at DESC", conn, params=(it['id'],)
-                    )
-                    conn.close()
-                    if tasks_df.empty:
-                        st.info("No hay tareas/alertas para esta demo.")
-                    else:
-                        for idx, row in tasks_df.iterrows():
-                            st.write(f"- [{ '✔️' if row['done'] else '❌' }] {row['title']}: {row['description']}")
-                            if not row['done']:
-                                if st.button(f"Marcar como realizada: {row['title']}", key=f"done_task_{row['id']}"):
-                                    conn = get_conn()
-                                    conn.execute("UPDATE task SET done=1 WHERE id=?", (row['id'],))
-                                    conn.commit()
-                                    conn.close()
-                                    st.success("Tarea marcada como realizada")
-                                    st.rerun()
+                
+                    with st.container():
+                        # Participantes asociados a la demo (dentro de la tarjeta)
+                        conn = get_conn()
+                        part_df = pd.read_sql_query(
+                            "SELECT name, email, phone FROM participant WHERE demo_id=?",
+                            conn, params=(it['id'],)
+                        )
+                        conn.close()
+                        st.markdown("**Participantes asociados:**")
+                        if part_df.empty:
+                            st.info("No hay participantes para esta demo.")
+                        else:
+                            for idx, row in part_df.iterrows():
+                                st.write(f"{row['name']} | {row['email']} | {row['phone']}")
+
+                        # Tareas / Alertas asociadas (dentro de la tarjeta)
+                        st.markdown("**Tareas / Alertas asociadas:**")
+                        conn = get_conn()
+                        tasks_df = pd.read_sql_query(
+                            "SELECT * FROM task WHERE demo_id=? ORDER BY created_at DESC", conn, params=(it['id'],)
+                        )
+                        conn.close()
+                        if tasks_df.empty:
+                            st.info("No hay tareas/alertas para esta demo.")
+                        else:
+                            for idx, row in tasks_df.iterrows():
+                                st.write(f"- [{ '✔️' if row['done'] else '❌' }] {row['title']}: {row['description']}")
+                                if not row['done']:
+                                    if st.button(f"Marcar como realizada: {row['title']}", key=f"done_task_{row['id']}"):
+                                        conn = get_conn()
+                                        conn.execute("UPDATE task SET done=1 WHERE id=?", (row['id'],))
+                                        conn.commit()
+                                        conn.close()
+                                        st.success("Tarea marcada como realizada")
+                                        st.rerun()
+
+                        # Mostrar y editar descripción de tareas (dentro de la tarjeta)
+                        descripcion = ""
+                        try:
+                            metadata = json.loads(it.get('metadata') or '{}')
+                            descripcion = metadata.get('descripcion_tareas', '')
+                        except Exception:
+                            descripcion = ""
+                        st.markdown("**Descripción de tareas:**")
+                        new_descripcion = st.text_area(
+                            "Editar descripción de tareas",
+                            value=descripcion,
+                            key=f"desc_tareas_{it['id']}"
+                        )
+                        if st.button("Guardar descripción", key=f"save_desc_{it['id']}"):
+                            # Actualiza solo la descripción en metadata
+                            try:
+                                metadata = json.loads(it.get('metadata') or '{}')
+                            except Exception:
+                                metadata = {}
+                            metadata['descripcion_tareas'] = new_descripcion
+                            metadata_json = json.dumps(metadata)
+                            conn = get_conn()
+                            conn.execute(
+                                "UPDATE demo SET metadata=? WHERE id=?",
+                                (metadata_json, it['id'])
+                            )
+                            conn.commit()
+                            conn.close()
+                            st.success("Descripción de tareas actualizada")
+                            st.rerun()
+                            conn.commit()
+                            conn.close()
+                            st.success("Descripción de tareas actualizada")
+                            st.rerun()
